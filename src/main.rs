@@ -49,14 +49,18 @@ fn main() -> rltk::BError {
 
     let mut gs = State { ecs: World::new() };
 
-    gs.ecs.insert(new_map_rooms_and_corridors());
+    let (rooms, map) = new_map_rooms_and_corridors();
+    
+    gs.ecs.insert(map);
 
+    let (player_x, player_y) = rooms[0].center();
+    
     gs.ecs.register::<Player>();
     gs.ecs.register::<Position>();
     gs.ecs.register::<Renderable>();
     gs.ecs
         .create_entity()
-        .with(Position { x: 40, y: 25 })
+        .with(Position { x: player_x, y: player_y })
         .with(Renderable {
             glyph: rltk::to_cp437('@'),
             fg: RGB::named(rltk::YELLOW),

@@ -1,7 +1,7 @@
-use super::Rect;
+use super::{Player, Rect};
 use rltk::{RandomNumberGenerator, Rltk, RGB};
-use std::cmp::{max, min};
 use specs::prelude::*;
+use std::cmp::{max, min};
 
 #[derive(PartialEq, Copy, Clone)]
 pub enum TileType {
@@ -14,20 +14,20 @@ pub fn xy_idx(x: i32, y: i32) -> usize {
 }
 
 pub fn rerender_map(ecs: &mut World) {
-    let map = new_map_rooms_and_corridors();
+    let (_, map) = new_map_rooms_and_corridors();
 
     ecs.insert(map);
 }
 
 /// Makes a map with solid boundaries and 400 randomly walls.
 /// No guarantees that it won't look awful.
-pub fn new_map_rooms_and_corridors() -> Vec<TileType> {
+pub fn new_map_rooms_and_corridors() -> (Vec<Rect>, Vec<TileType>) {
     let mut map = vec![TileType::Wall; 80 * 50];
 
     let mut rooms: Vec<Rect> = Vec::new();
     const MAX_ROOMS: i32 = 20;
-    const MIN_SIZE: i32 = 6;
-    const MAX_SIZE: i32 = 10;
+    const MIN_SIZE: i32 = 4;
+    const MAX_SIZE: i32 = 14;
 
     let mut rng = RandomNumberGenerator::new();
 
@@ -38,19 +38,24 @@ pub fn new_map_rooms_and_corridors() -> Vec<TileType> {
         let y = rng.roll_dice(1, 50 - h - 1) - 1;
 
         let new_room = Rect::new(x, y, w, h);
-        let mut ok = true;
-        for other_room in rooms.iter() {
-            if new_room.intersect(other_room) {
-                ok = false
+        apply_room_to_map(&new_room, &mut map);
+
+        if !rooms.is_empty() {
+            let (new_x, new_y) = new_room.center();
+            let (prev_x, prev_y) = rooms[rooms.len() - 1].center();
+            if rng.range(0, 2) == 1 {
+                apply_horizontal_tunel(&mut map, prev_x, new_x, prev_y);
+                apply_vertical_tunnel(&mut map, prev_y, new_y, new_x);
+            } else {
+                apply_vertical_tunnel(&mut map, prev_y, new_y, prev_x);
+                apply_horizontal_tunel(&mut map, prev_x, new_x, new_y);
             }
         }
-        if ok {
-            apply_room_to_map(&new_room, &mut map);
-            rooms.push(new_room);
-        }
+
+        rooms.push(new_room);
     }
 
-    map
+    (rooms, map)
 }
 
 fn apply_room_to_map(room: &Rect, map: &mut [TileType]) {
