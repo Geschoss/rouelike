@@ -93,6 +93,12 @@ impl Map {
         map
     }
 
+    pub fn reveal_map(&mut self) {
+        for (idx, _tail) in self.tiles.iter().enumerate() {
+           self.revealed_tiles[idx as usize] = true;
+        }
+    }
+
     fn apply_room_to_map(&mut self, room: &Rect) {
         for y in room.y1 + 1..=room.y2 {
             for x in room.x1 + 1..=room.x2 {
