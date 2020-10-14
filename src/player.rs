@@ -1,4 +1,4 @@
-use super::{Map, Player, Position, State, TileType, Viewshed};
+use super::{Map, Player, Point, Position, RunState, State, TileType, Viewshed};
 use rltk::{Rltk, VirtualKeyCode};
 use specs::prelude::*;
 use std::cmp::{max, min};
@@ -7,6 +7,7 @@ pub fn try_move_player(delta_x: i32, delta_y: i32, ecs: &mut World) {
     let mut positions = ecs.write_storage::<Position>();
     let mut players = ecs.write_storage::<Player>();
     let mut viewsheds = ecs.write_storage::<Viewshed>();
+    let mut ppos = ecs.write_resource::<Point>();
     let map = ecs.fetch::<Map>();
 
     for (_player, pos, viewshed) in (&mut players, &mut positions, &mut viewsheds).join() {
@@ -14,6 +15,9 @@ pub fn try_move_player(delta_x: i32, delta_y: i32, ecs: &mut World) {
         if map.tiles[destination_idx] != TileType::Wall {
             pos.x = min(79, max(0, pos.x + delta_x));
             pos.y = min(49, max(0, pos.y + delta_y));
+
+            ppos.x = pos.x;
+            ppos.y = pos.y;
 
             viewshed.dirty = true;
         }
@@ -29,9 +33,9 @@ pub fn change_view_range_by(x: i32, ecs: &mut World) {
     }
 }
 
-pub fn player_input(gs: &mut State, ctx: &mut Rltk) {
+pub fn player_input(gs: &mut State, ctx: &mut Rltk) -> RunState {
     match ctx.key {
-        None => {}
+        None => return RunState::Paused,
         Some(key) => match key {
             VirtualKeyCode::Left | VirtualKeyCode::A => try_move_player(-1, 0, &mut gs.ecs),
             VirtualKeyCode::Right | VirtualKeyCode::D => try_move_player(1, 0, &mut gs.ecs),
@@ -40,7 +44,8 @@ pub fn player_input(gs: &mut State, ctx: &mut Rltk) {
             VirtualKeyCode::R => Map::rerender_map(&mut gs.ecs),
             VirtualKeyCode::Key9 => change_view_range_by(1, &mut gs.ecs),
             VirtualKeyCode::Key0 => change_view_range_by(-1, &mut gs.ecs),
-            _ => {}
+            _ => return RunState::Paused,
         },
     }
+    RunState::Running
 }

@@ -1,4 +1,4 @@
-use rltk::{GameState, Rltk, RGB};
+use rltk::{GameState, Point, Rltk, RGB};
 use specs::prelude::*;
 
 mod components;
@@ -14,8 +14,15 @@ pub use visibility_system::*;
 mod monster_ai_system;
 pub use monster_ai_system::*;
 
+#[derive(PartialEq, Copy, Clone)]
+pub enum RunState {
+    Paused,
+    Running,
+}
+
 pub struct State {
-    ecs: World,
+    pub ecs: World,
+    pub runstate: RunState,
 }
 
 impl State {
@@ -34,9 +41,13 @@ impl GameState for State {
     fn tick(&mut self, ctx: &mut Rltk) {
         ctx.cls();
 
-        self.run_systems();
+        if self.runstate == RunState::Running {
+            self.run_systems();
+            self.runstate = RunState::Paused;
+        } else {
+            self.runstate = player_input(self, ctx);
+        }
 
-        player_input(self, ctx);
         draw_map(&self.ecs, ctx);
 
         let positions = self.ecs.read_storage::<Position>();
@@ -56,15 +67,22 @@ impl GameState for State {
 fn add_enemes(gs: &mut State, map: &mut Map) {
     let mut rng = rltk::RandomNumberGenerator::new();
 
-    for room in map.rooms.iter().skip(1) {
+    for (i, room) in map.rooms.iter().skip(1).enumerate() {
         let (x, y) = room.center();
 
         let glyph: rltk::FontCharType;
+        let name: String;
         let roll = rng.roll_dice(1, 2);
 
         match roll {
-            1 => glyph = rltk::to_cp437('g'),
-            _ => glyph = rltk::to_cp437('o'),
+            1 => {
+                name = "Goblin".to_string();
+                glyph = rltk::to_cp437('g')
+            }
+            _ => {
+                name = "Orc".to_string();
+                glyph = rltk::to_cp437('o')
+            }
         }
 
         gs.ecs
@@ -81,6 +99,9 @@ fn add_enemes(gs: &mut State, map: &mut Map) {
                 dirty: true,
             })
             .with(Monster {})
+            .with(Name {
+                name: format!("{} #{}", &name, i),
+            })
             .build();
     }
 }
@@ -92,13 +113,17 @@ fn main() -> rltk::BError {
         .with_title("Roguelike Tutorial")
         .build()?;
 
-    let mut gs = State { ecs: World::new() };
+    let mut gs = State {
+        ecs: World::new(),
+        runstate: RunState::Running,
+    };
 
     gs.ecs.register::<Player>();
     gs.ecs.register::<Viewshed>();
     gs.ecs.register::<Position>();
     gs.ecs.register::<Renderable>();
     gs.ecs.register::<Monster>();
+    gs.ecs.register::<Name>();
 
     let mut map = Map::new();
 
@@ -107,6 +132,7 @@ fn main() -> rltk::BError {
     add_enemes(&mut gs, &mut map);
 
     gs.ecs.insert(map);
+    gs.ecs.insert(Point::new(player_x, player_y));
 
     gs.ecs
         .create_entity()
@@ -125,6 +151,9 @@ fn main() -> rltk::BError {
             dirty: true,
         })
         .with(Player {})
+        .with(Name {
+            name: "Player".to_string(),
+        })
         .build();
 
     rltk::main_loop(context, gs)
